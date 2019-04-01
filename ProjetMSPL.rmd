@@ -1,0 +1,261 @@
+---
+title: "Movie Collections"
+author: "Tariq HASDI"
+date: "28 MARS 2019"
+output:
+  word_document: default
+  pdf_document: default
+---
+
+##--------------------------------BIG DATA AND STATISTICS--------------------------##
+  
+  
+##------------Le sommaire -----------##
+
+- Introduction
+- Préparation des données
+- Plots de base
+- Correlation
+- Conclusion
+
+Chargement des bibliothèques de base
+```{r warning=FALSE, message=FALSE}
+Sys.setenv(PATH=paste(Sys.getenv("PATH"),"C:/Users/Tariq/AppData/Local/Programs/MiKTeX 2.9/miktex/bin/x64/",sep=";"))
+knitr::opts_chunk$set(echo = TRUE)
+
+library(dplyr)
+library(ggplot2)
+library(magrittr)
+library(scales)
+library(tidyr)
+library(rjson)
+
+options(scipen=999)  # turn-off scientific notation like 1e+48
+theme_set(theme_bw())  # pre-set the bw theme.
+```
+
+```{r}
+# Read CSV into R
+data <- read.csv("movies_metadata.csv", header=TRUE, sep = "," )
+##View(data)
+```
+
+
+## ----------------------------------------------- Introduction ------------------------------------##
+Les films
+Ces fichiers contiennent des métadonnées pour les 45 000 films répertoriés dans le jeu de données Full MovieLens. L'ensemble de données comprend les films sortis au plus tard en juillet 2017. Les points de données comprennent la distribution, l'équipe de tournage, les mots clés de l'intrigue, le budget, les recettes, les affiches, les dates de sortie, les langues, les sociétés de production, les pays, le nombre de votes TMDB et la moyenne des votes.
+Cet ensemble de données contient également des fichiers contenant 26 millions d'évaluations de 270 000 utilisateurs pour les 45 000 films. Les évaluations sont sur une échelle de 1 à 5 et ont été obtenues sur le site Web officiel de GroupLens.
+
+Le lien vers le jeu de données
+https://www.kaggle.com/rounakbanik/the-movies-dataset#movies_metadata.csv
+
+
+QUESTION:
+L'interrogatoire sera présenté dans une perspective d'analyse de données. Nous allons omettre le genre de film afin de faciliter l'étude.
+Dans quel langue, on a les meilleurs films?
+  Pour donner une réponse, nous devons trouver :
+  Pour quelle langue, nous avons le meilleur vote d'évaluation ?
+Y a-t-il une corrélation entre le vote_moy et les revenues des films regroupeé par la langue d'origine ?
+
+
+
+## ----------------------------------------------- Préparation des données ------------------------------------##
+
+
+On supprime les colonnes, qu'on n'a pas besoin pour notre analyse
+
+```{r}
+data %>% select(-adult) -> data;
+data %>% select(-belongs_to_collection) -> data;
+data %>% select(-budget) -> data;
+data %>% select(-original_title) -> data;
+data %>% select(-production_countries) -> data;
+data %>% select(-release_date) -> data;
+data %>% select(-homepage) -> data;
+data %>% select(-id) -> data;
+data %>% select(-imdb_id) -> data;
+data %>% select(-overview) -> data;
+data %>% select(-poster_path) -> data;
+data %>% select(-production_companies) -> data;
+data %>% select(-runtime) -> data;
+data %>% select(-status) -> data;
+data %>% select(-tagline) -> data;
+data %>% select(-title) -> data;
+data %>% select(-video) -> data;
+#data %>% select(-revenue) -> data;
+```
+
+
+
+Nombre d'objets dans data
+
+```{r}
+nbObjet <- nrow(data); 
+nbObjet;
+```
+
+
+Le pourcentage des objets qui n'ont pas de valeur pour attribut "vote_count"
+
+```{r}
+p_vote_count_NA_Values <- sum(is.na(data$vote_count)) / nbObjet;
+percent(p_vote_count_NA_Values);
+nb_vote_count_NA_Values <- sum(is.na(data$vote_count));
+nb_vote_count_NA_Values;
+```
+
+
+Le pourcentage des objets qui n'ont pas de valeur pour attribut "vote_average"
+
+```{r}
+p_vote_average_NA_Values <- sum(is.na(data$vote_average)) / nbObjet;
+percent(p_vote_average_NA_Values);
+nb_vote_average_NA_Values <- sum(is.na(data$vote_average));
+nb_vote_average_NA_Values;
+```
+
+Le pourcentage des objets qui n'ont pas de valeur pour attribut "revenue"
+
+```{r}
+p_revenue_NA_Values <- sum(is.na(data$revenue)) / nbObjet;
+percent(p_revenue_NA_Values);
+nb_revenue_NA_Values <- sum(is.na(data$revenue));
+nb_revenue_NA_Values;
+```
+
+
+Avec seulement 0,0132% des valeurs NA, ces lignes seront supprimées de la trame de données.
+
+```{r}
+data %>% filter(!is.na(vote_count)) -> data;
+data %>% filter(!is.na(vote_average)) -> data;
+```
+
+
+summary(data$vote_count)
+
+```{r}
+summary(data$vote_count);
+```
+
+
+Calcul de décile de data$vote_count
+
+```{r}
+decile<-quantile(data$vote_count, probs=seq(0, 1, 0.1));
+decile;
+```
+
+
+```{r}
+data %>% filter( data$vote_count >= 160 ) -> data;
+```
+
+
+summary(data$vote_count)
+
+```{r}
+summary(data$vote_count);
+```
+
+summary(data$vote_average)
+
+```{r}
+summary(data$vote_average);
+```
+
+Calcul de décile de data$vote_count
+
+```{r}
+decile<-quantile(data$vote_count, probs=seq(0, 1, 0.1));
+decile;
+```
+
+```{r}
+data %>% filter( data$vote_count >= 433 ) -> data;
+```
+
+## ----------------------------------------------- DÉTAILS DE BASE ET DE PLOTS ------------------------------------##
+
+Le premier Plot "Histograme"
+on trouve que la variable vote_average est gaussienne
+
+```{r}
+ggplot(data=data, aes(data$vote_average)) + 
+  geom_histogram(stat="count", fill="tomato3") +
+  labs(title="vote_average dans spreadsheet") 
+```
+
+
+De plus, un group_by est effectué pour récapituler les données par original_language
+
+```{r}
+data %>% group_by(original_language) %>% summarize(Moy_vote_average = mean(vote_average), Moy_revenue = mean(revenue)) -> origLangVote_average;
+head(origLangVote_average);
+```
+
+
+
+Le Plot suivant affichera le moyen vote_verage par langue originale
+
+```{r}
+ggplot(origLangVote_average, aes(x=original_language, y=Moy_vote_average)) + 
+  geom_bar(stat="identity", width=0.5, fill="tomato3") + 
+  labs(title="Average vote per original_language", subtitle="Plain view", caption="source: me") + 
+  theme(axis.text.x = element_text(angle=65, hjust=1, vjust=1))
+```
+
+
+
+Nous remarquons que toutes nos valeurs sont proches
+
+
+
+Avec 2282 valeurs, nous pouvons entrer dans les détails concernant la moyenne vote_average par original_language
+
+```{r}
+ggplot(origLangVote_average, aes(x=original_language, y=Moy_vote_average)) + 
+  geom_bar(stat="identity", width=0.5, fill="tomato3")  + 
+  scale_y_continuous(limits=c(min(origLangVote_average$Moy_vote_average),max(origLangVote_average$Moy_vote_average)),oob = rescale_none) +
+  labs(title="Moyenne vote_average per original_language", 
+	   subtitle="Centered view in [min(vote_average) , max(vote_average)]", 
+	   caption="source: me") + 
+  theme(axis.text.x = element_text(angle=65, vjust=0.6))
+
+```
+
+Premier élément de réponse: Le language_original HINDI est le meilleur par le vote.
+
+```{r}
+origLangVote_average %>% filter(Moy_vote_average == max(Moy_vote_average)) -> bestOriginal_languageVote_average;
+bestOriginal_languageVote_average;
+```
+
+
+```{r}
+len<-nrow(origLangVote_average);
+classement<-seq(1:len);
+origLangVote_averageClass <- cbind(classement,origLangVote_average[order(-origLangVote_average$Moy_vote_average),]);
+origLangVote_averageClass;
+```
+
+## --------------------------- Possibilité d'une corrélation langage_original/MoyRevenue  ------------------------------------##
+
+Le graphique ci-dessous nous permettra d'évaluer une corrélation possible entre langague_original et MoyRevenue
+
+```{r}
+ggplot(origLangVote_averageClass, aes(x=classement, y=Moy_revenue)) + 
+  geom_smooth(method="lm", se=F) +
+  labs(subtitle="Possible correlation Avg : Revenue / vote_average", 
+	   y="Average revenue", 
+	   x="Classement", 
+	   title="Classement/Revenue correlation", 
+	   caption = "Source: me")
+```
+
+
+## --------------------------- CONCLUSION------------------------------------##
+
+
+En conclusion, l'étude est principalement axée sur la relation entre la langue original d'un film et les revenues.
+Par cette étude, on a pu démontré qu'il a une corrélation entre les revenues des films et leurs langues d'origines.
